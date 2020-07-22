@@ -8,8 +8,8 @@ extern "C"
 
     extern const unsigned char data[27];
 
-    void print_hex(const unsigned char *data, size_t size);
-    void print_str(const char *str);
+    void print_hex(const char *name, const unsigned char *data, size_t size);
+    void print_str(const char *name, const char *str);
 #ifdef __cplusplus
 }
 #endif

@@ -1,2 +1,4 @@
 .vscode
 *.exe
+libgm.dll
+libgm.so

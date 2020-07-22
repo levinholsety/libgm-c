@@ -7,7 +7,7 @@ void cipher(BIO *out, BIO *in, EVP_CIPHER_CTX *ctx)
 {
     int buflen = 0x1000, cipherbuflen;
     size_t readlen;
-    unsigned char *buf = malloc(buflen), *cipherbuf = malloc(GM_SM4_estimate_out_length(buflen));
+    unsigned char *buf = malloc(buflen), *cipherbuf = malloc(GM_SM4_suggested_out_length(buflen));
     while (BIO_read_ex(in, buf, buflen, &readlen) == 1)
     {
         GM_SM4_update(ctx, cipherbuf, &cipherbuflen, buf, readlen);
@@ -30,13 +30,14 @@ void copy(unsigned char **to, size_t *len, BIO *from)
 
 void GM_SM4_test1()
 {
+    printf("sm4test1\n");
     EVP_CIPHER_CTX *ctx;
     BIO *in, *out;
 
     unsigned char key[16] = {0}, iv[16] = {0};
     GM_SM4_rand_key(key, iv);
-    print_hex(key, 16);
-    print_hex(iv, 16);
+    print_hex("sm4key", key, 16);
+    print_hex("sm4iv", iv, 16);
     ctx = GM_SM4_new_encryptor(key, iv);
     out = BIO_new(BIO_s_mem());
     in = BIO_new_mem_buf(data, sizeof(data));
@@ -47,7 +48,7 @@ void GM_SM4_test1()
     copy(&encdata, &enclen, out);
     BIO_free(out);
     GM_SM4_free(ctx);
-    print_hex(encdata, enclen);
+    print_hex("sm4encdata", encdata, enclen);
 
     ctx = GM_SM4_new_decryptor(key, iv);
     out = BIO_new(BIO_s_mem());
@@ -60,28 +61,27 @@ void GM_SM4_test1()
     copy(&decdata, &declen, out);
     BIO_free(out);
     GM_SM4_free(ctx);
-    print_str(decdata);
+    print_str("sm4decdata", decdata);
     free(decdata);
 }
 
 void GM_SM4_test2()
 {
+    printf("sm4test2\n");
     unsigned char key[16] = {0}, iv[16] = {0};
     GM_SM4_rand_key(key, iv);
 
     int dlen = sizeof(data);
     int enclen;
-    unsigned char *encdata = malloc(GM_SM4_estimate_out_length(dlen));
+    unsigned char *encdata = malloc(GM_SM4_suggested_out_length(dlen));
     GM_SM4_encrypt(encdata, &enclen, data, dlen, key, iv);
-    printf("%d\n", enclen);
-    print_hex(encdata, enclen);
+    print_hex("sm4encdata", encdata, enclen);
 
     int declen;
-    unsigned char *decdata = malloc(GM_SM4_estimate_out_length(enclen));
+    unsigned char *decdata = malloc(GM_SM4_suggested_out_length(enclen));
     GM_SM4_decrypt(decdata, &declen, encdata, enclen, key, iv);
     free(encdata);
-    printf("%d\n", declen);
-    print_str(decdata);
+    print_str("sm4decdata", decdata);
     free(decdata);
 }
 

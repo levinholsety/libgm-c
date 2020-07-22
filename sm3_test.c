@@ -3,9 +3,7 @@
 
 int main()
 {
-    int mdlen;
-    unsigned char *md = malloc(32);
-    GM_SM3_digest(md, &mdlen, data, sizeof(data));
-    print_hex(md, mdlen);
-    free(md);
+    unsigned char md[32];
+    GM_SM3_digest(md, data, sizeof(data));
+    print_hex("sm3hash", md, 32);
 }
