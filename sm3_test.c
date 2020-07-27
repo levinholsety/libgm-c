@@ -3,7 +3,7 @@
 
 int main()
 {
-    unsigned char md[32];
+    GM_SM3_MD md;
     GM_SM3_digest(md, data, sizeof(data));
-    print_hex("sm3hash", md, 32);
+    print_hex("sm3hash", md, sizeof(md));
 }

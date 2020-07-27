@@ -34,10 +34,11 @@ void GM_SM4_test1()
     EVP_CIPHER_CTX *ctx;
     BIO *in, *out;
 
-    unsigned char key[16] = {0}, iv[16] = {0};
+    GM_SM4_KEY key = {0};
+    GM_SM4_IV iv = {0};
     GM_SM4_rand_key(key, iv);
-    print_hex("sm4key", key, 16);
-    print_hex("sm4iv", iv, 16);
+    print_hex("sm4key", key, sizeof(key));
+    print_hex("sm4iv", iv, sizeof(iv));
     ctx = GM_SM4_new_encryptor(key, iv);
     out = BIO_new(BIO_s_mem());
     in = BIO_new_mem_buf(data, sizeof(data));
@@ -68,7 +69,8 @@ void GM_SM4_test1()
 void GM_SM4_test2()
 {
     printf("sm4test2\n");
-    unsigned char key[16] = {0}, iv[16] = {0};
+    GM_SM4_KEY key = {0};
+    GM_SM4_IV iv = {0};
     GM_SM4_rand_key(key, iv);
 
     int dlen = sizeof(data);
