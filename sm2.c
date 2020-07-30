@@ -1,4 +1,7 @@
 #include "sm2.h"
+#include "openssl/ec.h"
+#include "openssl/pem.h"
+#include <string.h>
 
 void GM_SM2_free_key(EVP_PKEY *kp)
 {
@@ -20,7 +23,7 @@ EVP_PKEY *GM_SM2_new_key()
 char *gm_sm2_pem_encode(EVP_PKEY *kp, int priv)
 {
     EC_KEY *key = EVP_PKEY_get0_EC_KEY(kp);
-    BIO *out = BIO_new(BIO_s_mem());
+    BIO *out    = BIO_new(BIO_s_mem());
     if (priv)
     {
         PEM_write_bio_ECPrivateKey(out, key, NULL, NULL, 0, NULL, NULL);
@@ -53,7 +56,7 @@ EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
     EVP_PKEY *kp = EVP_PKEY_new();
     if (priv)
     {
-        BIO *in = BIO_new_mem_buf(priv, strlen(priv));
+        BIO *in     = BIO_new_mem_buf(priv, strlen(priv));
         EC_KEY *key = NULL;
         PEM_read_bio_ECPrivateKey(in, &key, NULL, NULL);
         BIO_free(in);
@@ -61,7 +64,7 @@ EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
     }
     if (pub)
     {
-        BIO *in = BIO_new_mem_buf(pub, strlen(pub));
+        BIO *in     = BIO_new_mem_buf(pub, strlen(pub));
         EC_KEY *key = NULL;
         PEM_read_bio_EC_PUBKEY(in, &key, NULL, NULL);
         BIO_free(in);
@@ -103,7 +106,7 @@ int gm_sm2_crypt(unsigned char **out, size_t *outlen, const unsigned char *in, s
         EVP_PKEY_CTX_free(ctx);
         return 0;
     }
-    *out = malloc(*outlen);
+    *out    = malloc(*outlen);
     int ret = crypt(ctx, *out, outlen, in, inlen);
     EVP_PKEY_CTX_free(ctx);
     return ret;
