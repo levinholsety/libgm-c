@@ -1,4 +1,3 @@
-#include "hex.h"
 #include "sm2.h"
 #include "sm3.h"
 #include "sm4.h"
@@ -26,8 +25,8 @@ void test_sm2()
     char *private_key, *public_key;
 
     assert((kp = GM_SM2_new_key()) != NULL);
-    assert(GM_SM2_export_private(kp, &private_key) == RESULT_SUCCESS);
-    assert(GM_SM2_export_public(kp, &public_key) == RESULT_SUCCESS);
+    assert((private_key = GM_SM2_export_private(kp)) != NULL);
+    assert((public_key = GM_SM2_export_public(kp)) != NULL);
     GM_SM2_free_key(kp);
     printf("new_key(), export_private(), export_public() passed!\n");
 
@@ -64,7 +63,10 @@ void test_sm2()
     free(public_key);
 }
 
-const char SM3_HASH[] = "3a8c90ded60741c5283f0813ea2dece6672d8d6f32f3eb9820ed3ab2e6878a27";
+const unsigned char SM3_HASH[] = {0x3a, 0x8c, 0x90, 0xde, 0xd6, 0x07, 0x41, 0xc5,
+                                  0x28, 0x3f, 0x08, 0x13, 0xea, 0x2d, 0xec, 0xe6,
+                                  0x67, 0x2d, 0x8d, 0x6f, 0x32, 0xf3, 0xeb, 0x98,
+                                  0x20, 0xed, 0x3a, 0xb2, 0xe6, 0x87, 0x8a, 0x27};
 
 void test_sm3()
 {
@@ -72,9 +74,7 @@ void test_sm3()
 
     GM_SM3_MD md;
     assert(GM_SM3_digest(md, data, sizeof(data)) == RESULT_SUCCESS);
-    char str[65];
-    HEX_encode(str, NULL, md, sizeof(GM_SM3_MD));
-    assert(strcmp(SM3_HASH, str) == 0);
+    assert(memcmp(SM3_HASH, md, 32) == 0);
     printf("digest() passed!\n");
 }
 

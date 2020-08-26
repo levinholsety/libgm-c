@@ -5,34 +5,52 @@
 
 EVP_PKEY *GM_SM2_new_key()
 {
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
-    if (ctx == NULL)
+    EVP_PKEY_CTX *ctx;
+    if ((ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL)) == NULL)
     {
-        return NULL;
-    }
-    if (EVP_PKEY_paramgen_init(ctx) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return NULL;
-    }
-    if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, NID_sm2) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return NULL;
-    }
-    if (EVP_PKEY_keygen_init(ctx) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
         return NULL;
     }
     EVP_PKEY *kp = NULL;
-    if (EVP_PKEY_keygen(ctx, &kp) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return NULL;
-    }
+    if (EVP_PKEY_paramgen_init(ctx) > 0 &&
+        EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, NID_sm2) > 0 &&
+        EVP_PKEY_keygen_init(ctx) > 0 &&
+        EVP_PKEY_keygen(ctx, &kp) > 0) {}
     EVP_PKEY_CTX_free(ctx);
     return kp;
+}
+
+RESULT import_private_key(EVP_PKEY *kp, const char *priv)
+{
+    RESULT result = RESULT_FAILURE;
+    BIO *in;
+    if ((in = BIO_new_mem_buf(priv, strlen(priv))) != NULL)
+    {
+        EC_KEY *key = NULL;
+        if (PEM_read_bio_ECPrivateKey(in, &key, NULL, NULL) != NULL &&
+            EVP_PKEY_set1_EC_KEY(kp, key) > 0)
+        {
+            result = RESULT_SUCCESS;
+        }
+        BIO_free(in);
+    }
+    return result;
+}
+
+RESULT import_public_key(EVP_PKEY *kp, const char *pub)
+{
+    RESULT result = RESULT_FAILURE;
+    BIO *in;
+    if ((in = BIO_new_mem_buf(pub, strlen(pub))) != NULL)
+    {
+        EC_KEY *key = NULL;
+        if (PEM_read_bio_EC_PUBKEY(in, &key, NULL, NULL) != NULL &&
+            EVP_PKEY_set1_EC_KEY(kp, key) > 0)
+        {
+            result = RESULT_SUCCESS;
+        }
+        BIO_free(in);
+    }
+    return result;
 }
 
 EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
@@ -48,20 +66,7 @@ EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
     }
     if (priv != NULL)
     {
-        BIO *in = BIO_new_mem_buf(priv, strlen(priv));
-        if (in == NULL)
-        {
-            EVP_PKEY_free(kp);
-            return NULL;
-        }
-        EC_KEY *key = NULL;
-        if (PEM_read_bio_ECPrivateKey(in, &key, NULL, NULL) == NULL)
-        {
-            EVP_PKEY_free(kp);
-            return NULL;
-        }
-        BIO_free(in);
-        if (EVP_PKEY_set1_EC_KEY(kp, key) <= 0)
+        if (import_private_key(kp, priv) <= 0)
         {
             EVP_PKEY_free(kp);
             return NULL;
@@ -69,20 +74,7 @@ EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
     }
     if (pub != NULL)
     {
-        BIO *in = BIO_new_mem_buf(pub, strlen(pub));
-        if (in == NULL)
-        {
-            EVP_PKEY_free(kp);
-            return NULL;
-        }
-        EC_KEY *key = NULL;
-        if (PEM_read_bio_EC_PUBKEY(in, &key, NULL, NULL) == NULL)
-        {
-            EVP_PKEY_free(kp);
-            return NULL;
-        }
-        BIO_free(in);
-        if (EVP_PKEY_set1_EC_KEY(kp, key) <= 0)
+        if (import_public_key(kp, pub) <= 0)
         {
             EVP_PKEY_free(kp);
             return NULL;
@@ -96,105 +88,88 @@ void GM_SM2_free_key(EVP_PKEY *kp)
     EVP_PKEY_free(kp);
 }
 
-RESULT GM_SM2_pem_encode(EVP_PKEY *kp, char **str, int priv)
+char *read_text_from_bio(BIO *buf)
 {
-    if (str == NULL)
-    {
-        return RESULT_FAILURE;
-    }
-    EC_KEY *key = EVP_PKEY_get0_EC_KEY(kp);
-    if (key == NULL)
-    {
-        return RESULT_FAILURE;
-    }
-    BIO *out = BIO_new(BIO_s_mem());
-    if (out == NULL)
-    {
-        return RESULT_FAILURE;
-    }
-    if ((priv ? PEM_write_bio_ECPrivateKey(out, key, NULL, NULL, 0, NULL, NULL) : PEM_write_bio_EC_PUBKEY(out, key)) <= 0)
-    {
-        BIO_free(out);
-        return RESULT_FAILURE;
-    }
     BUF_MEM *mem = NULL;
-    if (BIO_get_mem_ptr(out, &mem) <= 0)
+    if (BIO_get_mem_ptr(buf, &mem) > 0)
     {
-        BIO_free(out);
-        return RESULT_FAILURE;
+        char *str;
+        if ((str = malloc(mem->length + 1)) != NULL)
+        {
+            memcpy(str, mem->data, mem->length);
+            *(str + mem->length) = 0;
+            return str;
+        }
     }
-    *str = malloc(mem->length + 1);
-    if (*str == NULL)
-    {
-        BIO_free(out);
-        return RESULT_FAILURE;
-    }
-    memcpy(*str, mem->data, mem->length);
-    *(*str + mem->length) = 0;
-    BIO_free(out);
-    return RESULT_SUCCESS;
+    return NULL;
 }
 
-RESULT GM_SM2_export_private(EVP_PKEY *kp, char **out)
+char *encode_pem(EVP_PKEY *kp, int priv)
 {
-    return GM_SM2_pem_encode(kp, out, 1);
+    char *result = NULL;
+    BIO *buf;
+    EC_KEY *key = EVP_PKEY_get0_EC_KEY(kp);
+    if (key != NULL &&
+        (buf = BIO_new(BIO_s_mem())) != NULL)
+    {
+        if ((priv ? PEM_write_bio_ECPrivateKey(buf, key, NULL, NULL, 0, NULL, NULL)
+                  : PEM_write_bio_EC_PUBKEY(buf, key)) > 0)
+        {
+            result = read_text_from_bio(buf);
+        }
+        BIO_free(buf);
+    }
+    return result;
 }
 
-RESULT GM_SM2_export_public(EVP_PKEY *kp, char **out)
+char *GM_SM2_export_private(EVP_PKEY *kp)
 {
-    return GM_SM2_pem_encode(kp, out, 0);
+    return encode_pem(kp, 1);
+}
+
+char *GM_SM2_export_public(EVP_PKEY *kp)
+{
+    return encode_pem(kp, 0);
 }
 
 EVP_PKEY_CTX *GM_SM2_new(EVP_PKEY *kp, int (*init)(EVP_PKEY_CTX *))
 {
-    if (EVP_PKEY_set_alias_type(kp, EVP_PKEY_SM2) <= 0)
+    EVP_PKEY_CTX *ctx = NULL;
+    if (EVP_PKEY_set_alias_type(kp, EVP_PKEY_SM2) > 0 &&
+        (ctx = EVP_PKEY_CTX_new(kp, NULL)) != NULL)
     {
-        return NULL;
-    }
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(kp, NULL);
-    if (ctx == NULL)
-    {
-        return NULL;
-    }
-    if (init(ctx) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return NULL;
+        if (init(ctx) <= 0)
+        {
+            EVP_PKEY_CTX_free(ctx);
+            ctx = NULL;
+        }
     }
     return ctx;
 }
 
 RESULT GM_SM2_crypt(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp,
                     int (*init)(EVP_PKEY_CTX *),
-                    int (*crypt)(EVP_PKEY_CTX *, unsigned char *, size_t *, const unsigned char *, size_t))
+                    int (*GM_SM2_crypt)(EVP_PKEY_CTX *, unsigned char *, size_t *, const unsigned char *, size_t))
 {
-    if (out == NULL || outlen == NULL)
-    {
-        return RESULT_FAILURE;
-    }
+    RESULT result     = RESULT_FAILURE;
     EVP_PKEY_CTX *ctx = GM_SM2_new(kp, init);
-    if (ctx == NULL)
+    if (ctx != NULL)
     {
-        return RESULT_FAILURE;
-    }
-    if (crypt(ctx, NULL, outlen, NULL, inlen) <= 0)
-    {
+        if (GM_SM2_crypt(ctx, NULL, outlen, NULL, inlen) > 0 &&
+            (*out = malloc(*outlen)) != NULL)
+        {
+            if (GM_SM2_crypt(ctx, *out, outlen, in, inlen) > 0)
+            {
+                result = RESULT_SUCCESS;
+            }
+            else
+            {
+                free(*out);
+            }
+        }
         EVP_PKEY_CTX_free(ctx);
-        return RESULT_FAILURE;
     }
-    *out = malloc(*outlen);
-    if (*out == NULL)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return RESULT_FAILURE;
-    }
-    if (crypt(ctx, *out, outlen, in, inlen) <= 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return RESULT_FAILURE;
-    }
-    EVP_PKEY_CTX_free(ctx);
-    return RESULT_SUCCESS;
+    return result;
 }
 
 RESULT GM_SM2_encrypt(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
@@ -214,22 +189,20 @@ RESULT GM_SM2_sign(unsigned char **out, size_t *outlen, const unsigned char *in,
 
 RESULT GM_SM2_verify(const unsigned char *sig, size_t siglen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
 {
+    RESULT result     = RESULT_FAILURE;
     EVP_PKEY_CTX *ctx = GM_SM2_new(kp, EVP_PKEY_verify_init);
-    if (ctx == NULL)
+    if (ctx != NULL)
     {
-        return RESULT_ERROR;
-    }
-    int result = EVP_PKEY_verify(ctx, sig, siglen, in, inlen);
-    if (result <= 0)
-    {
+        int verified = EVP_PKEY_verify(ctx, sig, siglen, in, inlen);
+        if (verified > 0)
+        {
+            result = RESULT_SUCCESS;
+        }
+        else if (verified < 0)
+        {
+            result = RESULT_ERROR;
+        }
         EVP_PKEY_CTX_free(ctx);
-        return RESULT_ERROR;
     }
-    if (result == 0)
-    {
-        EVP_PKEY_CTX_free(ctx);
-        return RESULT_FAILURE;
-    }
-    EVP_PKEY_CTX_free(ctx);
-    return RESULT_SUCCESS;
+    return result;
 }
