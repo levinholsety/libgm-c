@@ -1,5 +1,3 @@
 .vscode
-*.exe
-*.out
-libgm.dll
-libgm.so
+output
+src/test
