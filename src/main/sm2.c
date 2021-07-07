@@ -70,6 +70,7 @@ int GM_SM2_key_decode(EC_KEY **key, const char *pem, int pri)
 }
 
 #define use_pkey(exp, key)                                              \
+    do                                                                  \
     {                                                                   \
         EVP_PKEY *pkey = EVP_PKEY_new();                                \
         if (pkey)                                                       \
@@ -88,7 +89,7 @@ int GM_SM2_key_decode(EC_KEY **key, const char *pem, int pri)
             EVP_PKEY_free(pkey);                                        \
             pkey = NULL;                                                \
         }                                                               \
-    }
+    } while (0)
 
 int GM_SM2_crypt(unsigned char **out, size_t *out_len, const unsigned char *in, size_t in_len, EC_KEY *key, int enc)
 {

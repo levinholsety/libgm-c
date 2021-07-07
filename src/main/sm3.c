@@ -8,10 +8,13 @@ int GM_SM3_digest(unsigned char *md, const void *data, size_t data_len)
     if (ctx)
     {
         unsigned int md_len;
-        ok = EVP_DigestInit_ex(ctx, EVP_sm3(), NULL) == SUCCESS &&
-             EVP_DigestUpdate(ctx, data, data_len) == SUCCESS &&
-             EVP_DigestFinal_ex(ctx, md, &md_len) == SUCCESS &&
-             md_len == 32;
+        if (EVP_DigestInit_ex(ctx, EVP_sm3(), NULL) == SUCCESS &&
+            EVP_DigestUpdate(ctx, data, data_len) == SUCCESS &&
+            EVP_DigestFinal_ex(ctx, md, &md_len) == SUCCESS &&
+            md_len == 32)
+        {
+            ok = SUCCESS;
+        }
         EVP_MD_CTX_free(ctx);
         ctx = NULL;
     }
