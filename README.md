@@ -122,3 +122,157 @@ SM3用于计算数据哈希值。
 说明：
 
 SM4用于对称加密。
+
+---
+
+## 例子
+
+```c
+#include "sm2.h"
+#include "sm3.h"
+#include "sm4.h"
+#include "stdio.h"
+#include "stdlib.h"
+
+void print_hex(const unsigned char *data, size_t data_len)
+{
+    while (data_len-- > 0)
+    {
+        printf("%02x", *data++);
+    }
+}
+
+void test_sm2()
+{
+    printf("test_sm2()\n");
+    unsigned char data[] = "Hello World!";
+    char *pemPri         = NULL;
+    char *pemPub         = NULL;
+    // 生成密钥对
+    EC_KEY *key = GM_SM2_key_new();
+    if (key != NULL)
+    {
+        // 编码私钥
+        if (GM_SM2_key_encode(&pemPri, key, 1) == SUCCESS)
+        {
+            printf("%s\n", pemPri);
+        }
+        // 编码公钥
+        if (GM_SM2_key_encode(&pemPub, key, 0) == SUCCESS)
+        {
+            printf("%s\n", pemPub);
+        }
+
+        GM_SM2_key_free(key);
+        key = NULL;
+    }
+
+    unsigned char *enc_data = NULL;
+    size_t enc_len          = 0;
+    // 解码公钥并加密
+    if (GM_SM2_key_decode(&key, pemPub, 0) == SUCCESS &&
+        GM_SM2_encrypt(&enc_data, &enc_len, data, sizeof(data), key) == SUCCESS)
+    {
+        printf("enc_data=%d,", enc_len);
+        print_hex(enc_data, enc_len);
+        printf("\n");
+
+        GM_SM2_key_free(key);
+        key = NULL;
+
+        unsigned char *dec_data = NULL;
+        size_t dec_len          = 0;
+        // 解码私钥并解密
+        if (GM_SM2_key_decode(&key, pemPri, 1) == SUCCESS &&
+            GM_SM2_decrypt(&dec_data, &dec_len, enc_data, enc_len, key) == SUCCESS)
+        {
+            printf("dec_data=%d,%.*s\n", dec_len, dec_len, dec_data);
+
+            GM_SM2_key_free(key);
+            key = NULL;
+            free(dec_data);
+            dec_data = NULL;
+        }
+
+        free(enc_data);
+        enc_data = NULL;
+    }
+
+    unsigned char *sig   = NULL;
+    size_t sig_len       = 0;
+    unsigned char id[16] = {0};
+    // 解码私钥并签名
+    if (GM_SM2_key_decode(&key, pemPri, 1) == SUCCESS &&
+        GM_SM2_sign(&sig, &sig_len, data, sizeof(data), id, key) == SUCCESS)
+    {
+        printf("sig=%d,", sig_len);
+        print_hex(sig, sig_len);
+        printf("\n");
+
+        GM_SM2_key_free(key);
+        key = NULL;
+
+        // 解码公钥并验签
+        if (GM_SM2_key_decode(&key, pemPub, 0) == SUCCESS)
+        {
+            int verified = GM_SM2_verify(sig, sig_len, data, sizeof(data), id, key);
+            printf("verified=%d\n", verified);
+
+            GM_SM2_key_free(key);
+            key = NULL;
+        }
+
+        free(sig);
+        sig = NULL;
+    }
+
+    free(pemPri);
+    pemPri = NULL;
+    free(pemPub);
+    pemPub = NULL;
+}
+
+void test_sm3()
+{
+    printf("test_sm3()\n");
+    unsigned char data[] = "Hello World!";
+    unsigned char md[32] = {0};
+    if (GM_SM3_digest(md, data, sizeof(data)) == SUCCESS)
+    {
+        printf("md=");
+        print_hex(md, sizeof(md));
+        printf("\n");
+    }
+}
+
+void test_sm4()
+{
+    printf("test_sm4()\n");
+    unsigned char data[] = "Hello World!";
+    unsigned char enc_data[sizeof(data) + 16];
+    int enc_len           = 0;
+    unsigned char key[16] = {0};
+    unsigned char iv[16]  = {0};
+    if (GM_SM4_encrypt(enc_data, &enc_len, data, sizeof(data), key, iv) == SUCCESS)
+    {
+        printf("enc_data=%d,", enc_len);
+        print_hex(enc_data, enc_len);
+        printf("\n");
+
+        unsigned char dec_data[enc_len + 16];
+        int dec_len = 0;
+        if (GM_SM4_decrypt(dec_data, &dec_len, enc_data, enc_len, key, iv) == SUCCESS)
+        {
+            printf("dec_data=%d,%.*s\n", dec_len, dec_len, dec_data);
+        }
+    }
+}
+
+int main()
+{
+    test_sm2();
+    test_sm3();
+    test_sm4();
+}
+
+```
