@@ -1,38 +1,52 @@
 #include "sm3.h"
+#include "openssl/evp.h"
 
-EVP_MD_CTX *GM_SM3_new()
+int GM_SM3_digest(unsigned char *md, const void *data, size_t data_len)
 {
+    int ok          = FAILURE;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    if (ctx == NULL) return NULL;
-    if (EVP_DigestInit_ex(ctx, EVP_sm3(), NULL) > 0) return ctx;
-    EVP_MD_CTX_free(ctx);
-    return NULL;
-}
-
-void GM_SM3_free(EVP_MD_CTX *ctx)
-{
-    if (ctx != NULL)
+    if (ctx)
     {
+        unsigned int md_len;
+        ok = EVP_DigestInit_ex(ctx, EVP_sm3(), NULL) == SUCCESS &&
+             EVP_DigestUpdate(ctx, data, data_len) == SUCCESS &&
+             EVP_DigestFinal_ex(ctx, md, &md_len) == SUCCESS &&
+             md_len == 32;
         EVP_MD_CTX_free(ctx);
+        ctx = NULL;
     }
+    return ok;
 }
 
-int GM_SM3_update(EVP_MD_CTX *ctx, const void *in, size_t inlen)
+int GM_SM3_digest_file(unsigned char *md, FILE *file)
 {
-    return EVP_DigestUpdate(ctx, in, inlen) > 0;
-}
-
-int GM_SM3_final(EVP_MD_CTX *ctx, GM_SM3_MD md)
-{
-    return EVP_DigestFinal_ex(ctx, md, NULL) > 0;
-}
-
-int GM_SM3_digest(GM_SM3_MD md, const void *in, size_t inlen)
-{
-    EVP_MD_CTX *ctx = GM_SM3_new();
-    if (ctx == NULL) return 0;
-    int result = (GM_SM3_update(ctx, in, inlen) > 0 &&
-                  GM_SM3_final(ctx, md) > 0);
-    GM_SM3_free(ctx);
-    return result;
+    int ok          = FAILURE;
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (ctx)
+    {
+        if (EVP_DigestInit_ex(ctx, EVP_sm3(), NULL) == SUCCESS)
+        {
+            unsigned char buf[0x2000];
+            size_t buf_len;
+            int update_ok = SUCCESS;
+            while ((buf_len = fread(buf, 1, sizeof(buf), file)) > 0)
+            {
+                if (EVP_DigestUpdate(ctx, buf, buf_len) != SUCCESS)
+                {
+                    update_ok = FAILURE;
+                    break;
+                }
+            }
+            unsigned int md_len;
+            if (update_ok &&
+                EVP_DigestFinal_ex(ctx, md, &md_len) == SUCCESS &&
+                md_len == 32)
+            {
+                ok = SUCCESS;
+            }
+        }
+        EVP_MD_CTX_free(ctx);
+        ctx = NULL;
+    }
+    return ok;
 }

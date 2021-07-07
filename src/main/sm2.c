@@ -1,163 +1,173 @@
 #include "sm2.h"
-#include "openssl/ec.h"
 #include "openssl/pem.h"
-#include <string.h>
+#include "string.h"
 
-char *GM_read_text_from_bio(BIO *buf)
+EC_KEY *GM_SM2_key_new()
 {
-    char *result = NULL;
-    BUF_MEM *mem = NULL;
-    if (BIO_get_mem_ptr(buf, &mem) > 0 &&
-        (result = malloc(mem->length + 1)) != NULL)
+    EC_KEY *key = EC_KEY_new_by_curve_name(NID_sm2);
+    if (key)
     {
-        memcpy(result, mem->data, mem->length);
-        *(result + mem->length) = 0;
-    }
-    return result;
-}
-
-EVP_PKEY *GM_SM2_new_key()
-{
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
-    if (ctx == NULL) return NULL;
-    EVP_PKEY *kp = NULL;
-    if (EVP_PKEY_paramgen_init(ctx) > 0 &&
-        EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, NID_sm2) > 0 &&
-        EVP_PKEY_keygen_init(ctx) > 0 &&
-        EVP_PKEY_keygen(ctx, &kp) > 0) {}
-    EVP_PKEY_CTX_free(ctx);
-    return kp;
-}
-
-int GM_SM2_import_private_key(EVP_PKEY *kp, const char *priv)
-{
-    BIO *in = BIO_new_mem_buf(priv, strlen(priv));
-    if (in == NULL) return 0;
-    EC_KEY *key = NULL;
-    int result  = (PEM_read_bio_ECPrivateKey(in, &key, NULL, NULL) != NULL &&
-                  EVP_PKEY_set1_EC_KEY(kp, key) > 0);
-    BIO_free(in);
-    return result;
-}
-
-int GM_SM2_import_public_key(EVP_PKEY *kp, const char *pub)
-{
-    BIO *in = BIO_new_mem_buf(pub, strlen(pub));
-    if (in == NULL) return 0;
-    EC_KEY *key = NULL;
-    int result  = (PEM_read_bio_EC_PUBKEY(in, &key, NULL, NULL) != NULL &&
-                  EVP_PKEY_set1_EC_KEY(kp, key) > 0);
-    BIO_free(in);
-    return result;
-}
-
-EVP_PKEY *GM_SM2_import_key(const char *priv, const char *pub)
-{
-    if (priv == NULL && pub == NULL) return NULL;
-    EVP_PKEY *kp = EVP_PKEY_new();
-    if (kp == NULL) return NULL;
-    if (priv != NULL)
-    {
-        if (GM_SM2_import_private_key(kp, priv) <= 0)
+        if (EC_KEY_generate_key(key) != SUCCESS)
         {
-            EVP_PKEY_free(kp);
-            return NULL;
+            EC_KEY_free(key);
+            key = NULL;
         }
     }
-    if (pub != NULL)
+    return key;
+}
+
+void GM_SM2_key_free(EC_KEY *key)
+{
+    EC_KEY_free(key);
+}
+
+int GM_SM2_key_encode(char **pem, EC_KEY *key, int pri)
+{
+    int ok   = FAILURE;
+    BIO *mem = BIO_new(BIO_s_mem());
+    if (mem)
     {
-        if (GM_SM2_import_public_key(kp, pub) <= 0)
+        if ((pri
+                 ? PEM_write_bio_ECPrivateKey(mem, key, NULL, NULL, 0, NULL, NULL)
+                 : PEM_write_bio_EC_PUBKEY(mem, key)) > 0)
         {
-            EVP_PKEY_free(kp);
-            return NULL;
+            BUF_MEM *buf = NULL;
+            if (BIO_get_mem_ptr(mem, &buf) > 0)
+            {
+                *pem = malloc(buf->length + 1);
+                if (*pem)
+                {
+                    memcpy(*pem, buf->data, buf->length);
+                    (*pem)[buf->length] = 0;
+                    ok                  = SUCCESS;
+                }
+                BUF_MEM_free(buf);
+                buf = NULL;
+            }
         }
+        BIO_free(mem);
+        mem = NULL;
     }
-    return kp;
+    return ok;
 }
 
-void GM_SM2_free_key(EVP_PKEY *kp)
+int GM_SM2_key_decode(EC_KEY **key, const char *pem, int pri)
 {
-    EVP_PKEY_free(kp);
-}
-
-char *GM_SM2_encode_pem(EVP_PKEY *kp, int priv)
-{
-    EC_KEY *key = EVP_PKEY_get0_EC_KEY(kp);
-    if (key == NULL) return NULL;
-    BIO *buf = BIO_new(BIO_s_mem());
-    if (buf == NULL) return NULL;
-    char *result = NULL;
-    if ((priv ? PEM_write_bio_ECPrivateKey(buf, key, NULL, NULL, 0, NULL, NULL) > 0
-              : PEM_write_bio_EC_PUBKEY(buf, key)) > 0)
+    int ok   = FAILURE;
+    BIO *mem = BIO_new_mem_buf(pem, strlen(pem));
+    if (mem)
     {
-        result = GM_read_text_from_bio(buf);
+        if ((pri
+                 ? PEM_read_bio_ECPrivateKey(mem, key, NULL, NULL)
+                 : PEM_read_bio_EC_PUBKEY(mem, key, NULL, NULL)) != NULL)
+        {
+            ok = SUCCESS;
+        }
+        BIO_free(mem);
+        mem = NULL;
     }
-    BIO_free(buf);
-    return result;
+    return ok;
 }
 
-char *GM_SM2_export_private(EVP_PKEY *kp)
-{
-    return GM_SM2_encode_pem(kp, 1);
-}
-
-char *GM_SM2_export_public(EVP_PKEY *kp)
-{
-    return GM_SM2_encode_pem(kp, 0);
-}
-
-EVP_PKEY_CTX *GM_SM2_new(EVP_PKEY *kp, int (*init)(EVP_PKEY_CTX *))
-{
-    EVP_PKEY_CTX *ctx = NULL;
-    if (EVP_PKEY_set_alias_type(kp, EVP_PKEY_SM2) > 0 &&
-        (ctx = EVP_PKEY_CTX_new(kp, NULL)) != NULL)
-    {
-        if (init(ctx) > 0) return ctx;
-        EVP_PKEY_CTX_free(ctx);
+#define use_pkey(exp, key)                                              \
+    {                                                                   \
+        EVP_PKEY *pkey = EVP_PKEY_new();                                \
+        if (pkey)                                                       \
+        {                                                               \
+            if (EVP_PKEY_set1_EC_KEY(pkey, key) == SUCCESS &&           \
+                EVP_PKEY_set_alias_type(pkey, EVP_PKEY_SM2) == SUCCESS) \
+            {                                                           \
+                EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);      \
+                if (pctx)                                               \
+                {                                                       \
+                    exp                                                 \
+                        EVP_PKEY_CTX_free(pctx);                        \
+                    pctx = NULL;                                        \
+                }                                                       \
+            }                                                           \
+            EVP_PKEY_free(pkey);                                        \
+            pkey = NULL;                                                \
+        }                                                               \
     }
-    return NULL;
-}
 
-int GM_SM2_crypt(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp,
-                 int (*init)(EVP_PKEY_CTX *),
-                 int (*GM_SM2_crypt)(EVP_PKEY_CTX *, unsigned char *, size_t *, const unsigned char *, size_t))
+int GM_SM2_crypt(unsigned char **out, size_t *out_len, const unsigned char *in, size_t in_len, EC_KEY *key, int enc)
 {
-    EVP_PKEY_CTX *ctx = GM_SM2_new(kp, init);
-    if (ctx == NULL) return 0;
-    int result = (GM_SM2_crypt(ctx, NULL, outlen, NULL, inlen) > 0 &&
-                  (*out = malloc(*outlen)) != NULL);
-    if (result > 0)
+    int ok = FAILURE;
+    int (*init)(EVP_PKEY_CTX *);
+    int (*crypt)(EVP_PKEY_CTX *, unsigned char *, size_t *, const unsigned char *, size_t);
+    if (enc)
     {
-        result = GM_SM2_crypt(ctx, *out, outlen, in, inlen);
+        init  = EVP_PKEY_encrypt_init;
+        crypt = EVP_PKEY_encrypt;
     }
     else
     {
-        free(*out);
+        init  = EVP_PKEY_decrypt_init;
+        crypt = EVP_PKEY_decrypt;
     }
-    EVP_PKEY_CTX_free(ctx);
-    return result;
+    use_pkey(
+        if (init(pctx) == SUCCESS &&
+            crypt(pctx, NULL, out_len, NULL, in_len) == SUCCESS) {
+            *out = malloc(*out_len);
+            if (*out != NULL &&
+                crypt(pctx, *out, out_len, in, in_len) == SUCCESS)
+            {
+                ok = SUCCESS;
+            }
+            else
+            {
+                free(*out);
+                *out = NULL;
+            }
+        },
+        key);
+    return ok;
 }
 
-int GM_SM2_encrypt(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
+#define use_md(exp, key, id)                            \
+    use_pkey(                                           \
+        EVP_MD_CTX *mctx = EVP_MD_CTX_new();            \
+        if (mctx) {                                     \
+            if (EVP_PKEY_CTX_set1_id(pctx, id, 16) > 0) \
+            {                                           \
+                EVP_MD_CTX_set_pkey_ctx(mctx, pctx);    \
+                exp                                     \
+            }                                           \
+            EVP_MD_CTX_free(mctx);                      \
+            mctx = NULL;                                \
+        },                                              \
+        key)
+
+int GM_SM2_sign(unsigned char **sig, size_t *sig_len, const unsigned char *data, size_t data_len, const unsigned char *id, EC_KEY *key)
 {
-    return GM_SM2_crypt(out, outlen, in, inlen, kp, EVP_PKEY_encrypt_init, EVP_PKEY_encrypt);
+    int ok = FAILURE;
+    use_md(
+        if (EVP_DigestSignInit(mctx, NULL, EVP_sm3(), NULL, pkey) == SUCCESS &&
+            EVP_DigestSignUpdate(mctx, data, data_len) == SUCCESS &&
+            EVP_DigestSignFinal(mctx, NULL, sig_len) == SUCCESS) {
+        *sig = malloc(*sig_len);
+        if (*sig )
+        {
+            if (EVP_DigestSignFinal(mctx, *sig, sig_len) == SUCCESS)
+            {
+                ok = SUCCESS;
+            }
+            else
+            {
+                free(*sig);
+                *sig = NULL;
+            }
+        } },
+        key, id);
+    return ok;
 }
 
-int GM_SM2_decrypt(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
+int GM_SM2_verify(const unsigned char *sig, size_t sig_len, const unsigned char *data, size_t data_len, unsigned char *id, EC_KEY *key)
 {
-    return GM_SM2_crypt(out, outlen, in, inlen, kp, EVP_PKEY_decrypt_init, EVP_PKEY_decrypt);
-}
-
-int GM_SM2_sign(unsigned char **out, size_t *outlen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
-{
-    return GM_SM2_crypt(out, outlen, in, inlen, kp, EVP_PKEY_sign_init, EVP_PKEY_sign);
-}
-
-int GM_SM2_verify(const unsigned char *sig, size_t siglen, const unsigned char *in, size_t inlen, EVP_PKEY *kp)
-{
-    EVP_PKEY_CTX *ctx = GM_SM2_new(kp, EVP_PKEY_verify_init);
-    if (ctx == NULL) return -1;
-    int result = EVP_PKEY_verify(ctx, sig, siglen, in, inlen);
-    EVP_PKEY_CTX_free(ctx);
-    return result;
+    int ok = FAILURE;
+    use_md(ok = EVP_DigestVerifyInit(mctx, NULL, EVP_sm3(), NULL, pkey) == SUCCESS &&
+                EVP_DigestVerifyUpdate(mctx, data, data_len) == SUCCESS &&
+                EVP_DigestVerifyFinal(mctx, sig, sig_len) == SUCCESS;
+           , key, id);
+    return ok;
 }

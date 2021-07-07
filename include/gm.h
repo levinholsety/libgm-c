@@ -1,5 +1,4 @@
-#ifdef GM_DLL_EXPORT
-#define GM_API __declspec(dllexport)
-#else
-#define GM_API __declspec(dllimport)
-#endif
+#include "openssl/ossl_typ.h"
+
+#define SUCCESS 1
+#define FAILURE 0
