@@ -1,6 +1,7 @@
 SRC_ROOT = src/main/
 INC_DIRS = include/
 BIN_DIR = bin/
+OBJ_DIR = obj/
 
 CC = gcc
 CFLAGS = -std=c11 -fPIC
@@ -9,7 +10,5 @@ LIBS = -lcrypto
 BIN_NAME = gm
 MAJOR_VERSION = 1
 MINOR_VERSION = 0
-
-SRC_DIRS = $(SRC_ROOT)
 
 include Shared.mk

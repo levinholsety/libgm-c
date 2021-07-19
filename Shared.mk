@@ -1,19 +1,19 @@
 ifeq ($(OS), Windows_NT)
 
-BIN_FILE = $(BIN_DIR)$(BIN_NAME).dll
-OBJ_DIR = obj/win32/
+bin_file = $(BIN_DIR)$(BIN_NAME).dll
+os_obj_dir = $(OBJ_DIR)win32/
 
 else ifeq ($(shell uname), Linux)
 
-SO_NAME = lib$(BIN_NAME).so
-SO_NAME_MAJOR = $(SO_NAME).$(MAJOR_VERSION)
-LDFLAGS += -Wl,-soname,$(SO_NAME_MAJOR)
-BIN_FILE = $(BIN_DIR)$(SO_NAME_MAJOR).$(MINOR_VERSION)
-OBJ_DIR = obj/linux/
+so_name = lib$(BIN_NAME).so
+so_name_major = $(so_name).$(MAJOR_VERSION)
+LDFLAGS += -Wl,-soname,$(so_name_major)
+bin_file = $(BIN_DIR)$(so_name_major).$(MINOR_VERSION)
+os_obj_dir = $(OBJ_DIR)linux/
 
 else
 
-UNSUPPORTED_OS = 1
+unsupported_os = 1
 
 endif
 

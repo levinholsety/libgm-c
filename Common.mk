@@ -1,35 +1,38 @@
 .PHONY: all clean
 
-ifdef UNSUPPORTED_OS
+ifdef unsupported_os
 
 all clean:
 	@echo Unsupported operating system $(shell uname).
 
 else
 
-INC = $(addprefix -I,$(INC_DIRS))
-SRC_FILES = $(foreach DIR, $(SRC_DIRS), $(wildcard $(DIR)*.c))
-OBJ_DIRS = $(patsubst $(SRC_ROOT)%, $(OBJ_DIR)%, $(SRC_DIRS))
-OBJ_FILES = $(patsubst $(SRC_ROOT)%.c, $(OBJ_DIR)%.o, $(SRC_FILES))
-PRE_DIRS = $(OBJ_DIRS)
-PRE_DIRS += $(BIN_DIR)
+walk = $(if $(wildcard $(1)*), $(1) $(foreach path, $(wildcard $(1)*), $(call walk, $(path)/)))
 
-all: $(BIN_FILE)
+inc = $(addprefix -I,$(INC_DIRS))
+src_dirs = $(call walk, $(SRC_ROOT))
+src_files = $(foreach dir, $(src_dirs), $(wildcard $(dir)*.c))
+obj_dirs = $(patsubst $(SRC_ROOT)%, $(os_obj_dir)%, $(src_dirs))
+obj_files = $(patsubst $(SRC_ROOT)%.c, $(os_obj_dir)%.o, $(src_files))
+pre_dirs = $(obj_dirs)
+pre_dirs += $(BIN_DIR)
 
-$(BIN_FILE): $(OBJ_FILES)
+all: $(bin_file)
+
+$(bin_file): $(obj_files)
 	@echo Linking library $@...
 	@$(CC) $(LDFLAGS) -o$@ $^ $(LIBS)
 
-$(OBJ_FILES): $(OBJ_DIR)%.o: $(SRC_ROOT)%.c | $(PRE_DIRS)
+$(obj_files): $(os_obj_dir)%.o: $(SRC_ROOT)%.c | $(pre_dirs)
 	@echo Compiling $<...
-	@$(CC) -c $(CFLAGS) -o$@ $< $(INC)
+	@$(CC) -c $(CFLAGS) -o$@ $< $(inc)
 
-$(PRE_DIRS):
+$(pre_dirs):
 	@echo Creating directory $@...
 	@mkdir -p $@
 
 clean:
-	@$(foreach FILE,$(wildcard $(BIN_FILE) $(OBJ_FILES)),echo Removing file $(FILE)...;rm -f $(FILE);)
-	@$(foreach DIR,$(wildcard $(PRE_DIRS)),echo Removing directory $(DIR)...;rmdir -p --ignore-fail-on-non-empty $(DIR);)
+	@$(foreach file,$(wildcard $(bin_file) $(obj_files)),echo Removing file $(file)...;rm -f $(file);)
+	@$(foreach dir,$(wildcard $(pre_dirs)),echo Removing directory $(dir)...;rmdir -p --ignore-fail-on-non-empty $(dir);)
 
 endif
