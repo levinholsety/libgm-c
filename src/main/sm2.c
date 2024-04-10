@@ -27,8 +27,7 @@ int GM_SM2_key_encode(char **pem, EC_KEY *key, int pri)
     BIO *mem = BIO_new(BIO_s_mem());
     if (mem)
     {
-        if ((pri
-                 ? PEM_write_bio_ECPrivateKey(mem, key, NULL, NULL, 0, NULL, NULL)
+        if ((pri ? PEM_write_bio_ECPrivateKey(mem, key, NULL, NULL, 0, NULL, NULL)
                  : PEM_write_bio_EC_PUBKEY(mem, key)) > 0)
         {
             BUF_MEM *buf = NULL;
@@ -45,6 +44,7 @@ int GM_SM2_key_encode(char **pem, EC_KEY *key, int pri)
                 buf = NULL;
             }
         }
+        BIO_set_close(mem, BIO_NOCLOSE);
         BIO_free(mem);
         mem = NULL;
     }
@@ -57,12 +57,12 @@ int GM_SM2_key_decode(EC_KEY **key, const char *pem, int pri)
     BIO *mem = BIO_new_mem_buf(pem, strlen(pem));
     if (mem)
     {
-        if ((pri
-                 ? PEM_read_bio_ECPrivateKey(mem, key, NULL, NULL)
+        if ((pri ? PEM_read_bio_ECPrivateKey(mem, key, NULL, NULL)
                  : PEM_read_bio_EC_PUBKEY(mem, key, NULL, NULL)) != NULL)
         {
             ok = SUCCESS;
         }
+        BIO_set_close(mem, BIO_NOCLOSE);
         BIO_free(mem);
         mem = NULL;
     }
@@ -108,7 +108,7 @@ int GM_SM2_crypt(unsigned char **out, size_t *out_len, const unsigned char *in, 
     }
     use_pkey(
         if (init(pctx) == SUCCESS &&
-            crypt(pctx, NULL, out_len, NULL, in_len) == SUCCESS) {
+            crypt(pctx, NULL, out_len, in, in_len) == SUCCESS) {
             *out = malloc(*out_len);
             if (*out != NULL &&
                 crypt(pctx, *out, out_len, in, in_len) == SUCCESS)
@@ -146,19 +146,20 @@ int GM_SM2_sign(unsigned char **sig, size_t *sig_len, const unsigned char *data,
         if (EVP_DigestSignInit(mctx, NULL, EVP_sm3(), NULL, pkey) == SUCCESS &&
             EVP_DigestSignUpdate(mctx, data, data_len) == SUCCESS &&
             EVP_DigestSignFinal(mctx, NULL, sig_len) == SUCCESS) {
-        *sig = malloc(*sig_len);
-        if (*sig )
-        {
-            if (EVP_DigestSignFinal(mctx, *sig, sig_len) == SUCCESS)
+            *sig = malloc(*sig_len);
+            if (*sig)
             {
-                ok = SUCCESS;
+                if (EVP_DigestSignFinal(mctx, *sig, sig_len) == SUCCESS)
+                {
+                    ok = SUCCESS;
+                }
+                else
+                {
+                    free(*sig);
+                    *sig = NULL;
+                }
             }
-            else
-            {
-                free(*sig);
-                *sig = NULL;
-            }
-        } },
+        },
         key, id);
     return ok;
 }
